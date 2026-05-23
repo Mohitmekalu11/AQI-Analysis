@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}AQI Forecast{% endblock %}
+
+{% block content %}
+<div class="page-header fade-in">
+  <h1>7-Day AQI <span style="color:var(--accent)">Forecast</span></h1>
+  <p>ML-powered predictions using XGBoost / Random Forest trained on historical data</p>
+</div>
+
+<div class="card fade-in" style="margin-bottom:1.5rem;">
+  <div class="card-title" style="margin-bottom:0.75rem;">Select City</div>
+  <div style="display:flex; gap:0.5rem; flex-wrap:wrap;" id="city-picker">
+    {% for city in cities %}
+    <div class="city-pill {{ 'active' if city.city_name == 'Delhi' }}"
+         onclick="selectCity('{{ city.city_name }}', this)">
+      {{ city.city_name }}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="grid-2">
+  <div class="card fade-in" style="animation-delay:0.1s;">
+    <div class="card-header">
+      <div class="card-title">7-Day Forecast</div>
+      <span class="badge badge-moderate" id="model-tag">—</span>
+    </div>
+    <div class="chart-wrap" style="height:280px;"><canvas id="chart-forecast"></canvas></div>
+  </div>
+
+  <div class="card fade-in" style="animation-delay:0.15s;">
+    <div class="card-header"><div class="card-title">Forecast Summary</div></div>
+    <div id="forecast-summary">
+      <div style="display:flex; justify-content:center; align-items:center; height:200px;">
+        <div class="spinner"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card mt-2 fade-in" style="animation-delay:0.2s;">
+  <div class="card-header"><div class="card-title">Day-by-Day Breakdown</div></div>
+  <div id="day-breakdown" style="display:flex; gap:0.75rem; flex-wrap:wrap;"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let fChart;
+function selectCity(city, el) {
+  document.querySelectorAll('.city-pill').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  loadForecast(city);
+}
+
+async function loadForecast(city) {
+  document.getElementById('forecast-summary').innerHTML = '<div style="display:flex;justify-content:center;align-items:center;height:200px;"><div class="spinner"></div></div>';
+
+  const res   = await fetch(`/api/predictions?city=${encodeURIComponent(city)}`);
+  const json  = await res.json();
+  const preds = json.data?.predictions || [];
+  const summary = json.data?.summary || {};
+  const model = preds[0]?.model_used || '—';
+  document.getElementById('model-tag').textContent = model;
+
+  // Forecast chart
+  if (fChart) fChart.destroy();
+  const ctx = document.getElementById('chart-forecast').getContext('2d');
+  fChart = new Chart(ctx, {
+    type:'bar',
+    data:{
+      labels: preds.map(p => new Date(p.predicted_date+'T00:00:00').toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short'})),
+      datasets:[{
+        label:'Predicted AQI',
+        data: preds.map(p => p.predicted_aqi),
+        backgroundColor: preds.map(p => aqiColor(p.predicted_aqi)+'50'),
+        borderColor:     preds.map(p => aqiColor(p.predicted_aqi)),
+        borderWidth:1.5, borderRadius:8,
+      }]
+    },
+    options:{responsive:true,maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:{min:0}}}
+  });
+
+  // Summary
+  document.getElementById('forecast-summary').innerHTML = `
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+      <div>
+        <div class="card-title">7-Day Average</div>
+        <div class="card-value" style="color:${aqiColor(summary.avg_aqi||0)}">${summary.avg_aqi||'—'}</div>
+        <div class="mono text-xs text-muted mt-1">${aqiLabel(summary.avg_aqi||0)}</div>
+      </div>
+      <div>
+        <div class="card-title">Peak AQI</div>
+        <div class="card-value" style="color:${aqiColor(summary.max_aqi||0)}">${summary.max_aqi||'—'}</div>
+        <div class="mono text-xs text-muted mt-1">on ${summary.worst_day ? new Date(summary.worst_day+'T00:00:00').toLocaleDateString('en-IN',{weekday:'long'}) : '—'}</div>
+      </div>
+      <div>
+        <div class="card-title">Best Day</div>
+        <div class="mono text-sm" style="color:var(--green); margin-top:4px;">${summary.best_day ? new Date(summary.best_day+'T00:00:00').toLocaleDateString('en-IN',{weekday:'long',month:'short',day:'numeric'}) : '—'}</div>
+      </div>
+      <div>
+        <div class="card-title">Lowest Forecast</div>
+        <div class="mono text-sm" style="color:var(--green); margin-top:4px;">${summary.min_aqi||'—'} AQI</div>
+      </div>
+    </div>`;
+
+  // Day cards
+  const breakdown = document.getElementById('day-breakdown');
+  breakdown.innerHTML = preds.map(p => {
+    const d     = new Date(p.predicted_date+'T00:00:00');
+    const color = aqiColor(p.predicted_aqi);
+    return `<div style="flex:1; min-width:100px; background:var(--bg-3); border:1px solid var(--border); border-radius:8px; padding:0.85rem; text-align:center;">
+      <div class="mono" style="font-size:0.65rem; color:var(--text-3);">${d.toLocaleDateString('en-IN',{weekday:'short'})}</div>
+      <div class="mono" style="font-size:0.7rem; color:var(--text-2); margin-bottom:0.5rem;">${d.toLocaleDateString('en-IN',{day:'numeric',month:'short'})}</div>
+      <div style="font-size:1.75rem; font-weight:800; color:${color};">${p.predicted_aqi}</div>
+      <div class="mono" style="font-size:0.6rem; color:${color}; margin-top:3px;">${aqiLabel(p.predicted_aqi).replace('Unhealthy for Sensitive Groups','Sensitive')}</div>
+    </div>`;
+  }).join('');
+}
+
+loadForecast('Delhi');
+</script>
+{% endblock %}

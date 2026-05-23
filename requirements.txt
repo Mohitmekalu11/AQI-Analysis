@@ -1,0 +1,16 @@
+flask==3.0.3
+flask-sqlalchemy==3.1.1
+flask-migrate==4.0.7
+psycopg2-binary==2.9.9
+pandas==2.2.2
+numpy==1.26.4
+scikit-learn==1.4.2
+xgboost==2.0.3
+prophet==1.1.5
+requests==2.31.0
+python-dotenv==1.0.1
+apscheduler==3.10.4
+sqlalchemy==2.0.30
+gunicorn==22.0.0
+flask-cors==4.0.1
+plotly==5.22.0

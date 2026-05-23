@@ -1,0 +1,453 @@
+{% extends "base.html" %}
+{% block title %}Overview{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* ── City card specific ────────────────────────────────────────────── */
+  .city-card {
+    text-decoration: none;
+    display: block;
+  }
+  .city-card .card {
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+  }
+  .city-card .card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, transparent 60%, rgba(37,99,235,0.03));
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+  }
+  .city-card .card:hover::before { opacity: 1; }
+  .city-card .card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--accent-mid);
+  }
+  .city-name {
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--text);
+    margin-top: 4px;
+  }
+  .city-aqi-num {
+    font-family: var(--font-display);
+    font-size: 2.8rem;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    margin-bottom: 0.35rem;
+  }
+  .city-pollutants {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border);
+  }
+  .city-pollutant-item {
+    flex: 1;
+  }
+  .city-pollutant-label {
+    font-size: 0.62rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-3);
+    margin-bottom: 2px;
+  }
+  .city-pollutant-val {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--text-2);
+  }
+
+  /* ── Arrow icon on city cards ─────────────────────────────────────── */
+  .city-arrow {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--bg-3);
+    border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s var(--ease-smooth);
+    opacity: 0;
+  }
+  .city-card .card:hover .city-arrow {
+    opacity: 1;
+    background: var(--accent-light);
+    border-color: var(--accent-mid);
+    transform: translate(2px, -2px);
+  }
+
+  /* ── Top stats bar ────────────────────────────────────────────────── */
+  .stats-bar {
+    display: flex;
+    gap: 1.5rem;
+    align-items: center;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 0.75rem 1.25rem;
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+  }
+  .stats-bar-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .stats-bar-icon {
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.85rem;
+  }
+  .stats-bar-label {
+    font-size: 0.7rem;
+    color: var(--text-3);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .stats-bar-value {
+    font-family: var(--font-display);
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.02em;
+  }
+  .stats-bar-divider {
+    width: 1px;
+    height: 28px;
+    background: var(--border);
+    flex-shrink: 0;
+  }
+  
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- ── Page Header ──────────────────────────────────────────────────────── -->
+<div class="page-header fade-in">
+  <div style="display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:1rem;">
+    <div>
+      <h1>Air Quality <span class="gradient-text">Overview</span></h1>
+      <p>Real-time AQI monitoring across major Indian cities · Auto-refreshes every 5 minutes</p>
+    </div>
+    <div style="display:flex; gap:0.75rem; align-items:center;">
+      <div id="stat-readings" style="font-size:0.78rem; color:var(--text-3); font-weight:500;">— readings collected</div>
+      <span class="nav-live-badge">Live</span>
+    </div>
+  </div>
+</div>
+
+<!-- ── City AQI Grid ─────────────────────────────────────────────────────── -->
+<div id="city-grid" class="grid-4" style="margin-bottom:2rem;">
+  {% for item in city_cards %}
+  {% set city = item.city %}
+  {% set latest = item.latest %}
+  {% set aqi = latest.aqi if latest else 0 %}
+  {% set aqi_color = '#10B981' if aqi <= 50 else '#F59E0B' if aqi <= 100 else '#F97316' if aqi <= 150 else '#EA580C' if aqi <= 200 else '#EF4444' if aqi <= 300 else '#DC2626' %}
+  {% set badge_cls = 'badge-good' if aqi <= 50 else 'badge-moderate' if aqi <= 100 else 'badge-sensitive' if aqi <= 150 else 'badge-unhealthy' if aqi <= 200 else 'badge-very-unhealthy' if aqi <= 300 else 'badge-hazardous' %}
+
+  <a href="/dashboard/city/{{ city.city_name }}" class="city-card slide-up" style="animation-delay:{{ loop.index0 * 0.045 }}s;">
+    <div class="card card-lift">
+      <!-- Arrow indicator -->
+      <div class="city-arrow">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+          <path d="M2 8L8 2M8 2H4M8 2v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--accent)"/>
+        </svg>
+      </div>
+
+      <!-- Top: city info + badge -->
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:0.75rem; padding-right:1.5rem;">
+        <div>
+          <div style="font-size:0.68rem; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-3);">{{ city.state }}</div>
+          <div class="city-name">{{ city.city_name }}</div>
+        </div>
+        {% if latest %}
+        <span class="badge {{ badge_cls }}">
+          {{ latest.category | replace('Unhealthy for Sensitive Groups','Sensitive') if latest.category else '—' }}
+        </span>
+        {% endif %}
+      </div>
+
+      <!-- AQI number -->
+      <div class="city-aqi-num" style="color:{{ aqi_color }};">
+        {{ aqi | int if latest else '—' }}
+      </div>
+      <div style="font-size:0.68rem; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-3);">AQI · US EPA Scale</div>
+
+      <!-- Progress bar -->
+      <div class="aqi-bar">
+        <div class="aqi-bar-fill" style="width:{{ [(aqi / 5)|int, 100]|min }}%; background:{{ aqi_color }};"></div>
+      </div>
+
+      <!-- Pollutants -->
+      {% if latest %}
+      <div class="city-pollutants">
+        <div class="city-pollutant-item">
+          <div class="city-pollutant-label">PM2.5</div>
+          <div class="city-pollutant-val">{{ latest.pm25 | round(1) if latest.pm25 else '—' }}</div>
+        </div>
+        <div class="city-pollutant-item">
+          <div class="city-pollutant-label">PM10</div>
+          <div class="city-pollutant-val">{{ latest.pm10 | round(1) if latest.pm10 else '—' }}</div>
+        </div>
+        <div class="city-pollutant-item">
+          <div class="city-pollutant-label">NO₂</div>
+          <div class="city-pollutant-val">{{ latest.no2 | round(1) if latest.no2 else '—' }}</div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </a>
+  {% endfor %}
+</div>
+
+<!-- ── Charts Row ────────────────────────────────────────────────────────── -->
+<div class="grid-2" style="margin-bottom:1rem;">
+  <!-- AQI Ranking Bar Chart -->
+  <div class="card fade-in" style="animation-delay:0.3s;">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Current AQI Ranking</div>
+        <div class="text-sm" style="color:var(--text-2); margin-top:4px; font-weight:400;">Ranked by pollution level</div>
+      </div>
+    </div>
+    <div class="chart-wrap" style="height:300px;">
+      <canvas id="chart-ranking"></canvas>
+    </div>
+  </div>
+
+  <!-- Pollutant Radar -->
+  <div class="card fade-in" style="animation-delay:0.35s;">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Pollutant Breakdown</div>
+        <div style="margin-top:6px;">
+          <select id="pollutant-city-select" class="sf-select">
+            {% for item in city_cards %}
+            <option value="{{ item.city.city_name }}">{{ item.city.city_name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="chart-wrap" style="height:300px;">
+      <canvas id="chart-pollutants"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- ── 7-Day Trend ───────────────────────────────────────────────────────── -->
+<div class="card fade-in" style="animation-delay:0.4s;">
+  <div class="card-header" style="flex-wrap:wrap; gap:0.75rem;">
+    <div>
+      <div class="card-title">7-Day AQI Trend</div>
+    </div>
+    <div class="pill-select-row" id="trend-city-pills">
+      {% for item in city_cards[:5] %}
+      <div class="city-pill {{ 'active' if loop.first }}" onclick="selectTrendCity('{{ item.city.city_name }}', this)">
+        {{ item.city.city_name }}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="chart-wrap" style="height:280px;">
+    <canvas id="chart-trend"></canvas>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Load platform stats ────────────────────────────────────────────────────
+fetch('/api/stats').then(r => r.json()).then(json => {
+  if (json.data) {
+    document.getElementById('stat-readings').textContent =
+      `${Number(json.data.data_points_processed).toLocaleString('en-IN')} readings collected`;
+  }
+});
+
+// ── Ranking Bar Chart ──────────────────────────────────────────────────────
+let rankChart;
+async function loadRankingChart() {
+  const res  = await fetch('/api/ranking');
+  const json = await res.json();
+  const data = json.data || [];
+  const labels = data.map(d => d.city_name);
+  const values = data.map(d => d.avg_aqi);
+  const colors = values.map(v => aqiColor(v));
+
+  const ctx = document.getElementById('chart-ranking').getContext('2d');
+  rankChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: colors.map(c => c + '20'),
+        borderColor: colors,
+        borderWidth: 2,
+        borderRadius: 6,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      animation: { duration: 800, easing: 'easeOutQuart' },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` AQI ${ctx.parsed.x.toFixed(0)} — ${aqiLabel(ctx.parsed.x)}`
+          }
+        }
+      },
+      scales: {
+        x: {
+          min: 0, max: 500,
+          ticks: { stepSize: 100 },
+          grid: { color: '#F0F2F7' }
+        },
+        y: {
+          ticks: { font: { size: 11, weight: '500' } },
+          grid: { display: false }
+        }
+      }
+    }
+  });
+}
+loadRankingChart();
+
+// ── Pollutant Radar Chart ──────────────────────────────────────────────────
+let pollChart;
+async function loadPollutantChart(city) {
+  const res  = await fetch(`/api/pollutants?city=${encodeURIComponent(city)}`);
+  const json = await res.json();
+  const p    = json.data?.pollutants || {};
+  const labels = ['PM2.5', 'PM10', 'NO₂', 'SO₂', 'O₃'];
+  const values = [p.pm25, p.pm10, p.no2, p.so2, p.o3].map(v => v || 0);
+
+  if (pollChart) pollChart.destroy();
+  const ctx = document.getElementById('chart-pollutants').getContext('2d');
+  pollChart = new Chart(ctx, {
+    type: 'radar',
+    data: {
+      labels,
+      datasets: [{
+        label: city,
+        data: values,
+        backgroundColor: 'rgba(37,99,235,0.08)',
+        borderColor: '#2563EB',
+        pointBackgroundColor: '#2563EB',
+        pointBorderColor: '#FFFFFF',
+        pointBorderWidth: 2,
+        pointRadius: 4,
+        borderWidth: 2,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      animation: { duration: 600, easing: 'easeOutQuart' },
+      plugins: { legend: { display: false } },
+      scales: {
+        r: {
+          grid: { color: '#F0F2F7' },
+          angleLines: { color: '#E2E6EF' },
+          pointLabels: {
+            color: '#6B7280',
+            font: { size: 11, weight: '600' }
+          },
+          ticks: { display: false, stepSize: 50 },
+          suggestedMin: 0,
+        }
+      }
+    }
+  });
+}
+loadPollutantChart('Delhi');
+document.getElementById('pollutant-city-select').addEventListener('change', function() {
+  loadPollutantChart(this.value);
+});
+
+// ── 7-Day Trend Chart ──────────────────────────────────────────────────────
+let trendChart;
+async function selectTrendCity(city, el) {
+  document.querySelectorAll('#trend-city-pills .city-pill').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  await loadTrendChart(city);
+}
+
+async function loadTrendChart(city) {
+  const res  = await fetch(`/api/trend?city=${encodeURIComponent(city)}&hours=168`);
+  const json = await res.json();
+  const d    = json.data || {};
+
+  if (trendChart) trendChart.destroy();
+  const ctx = document.getElementById('chart-trend').getContext('2d');
+
+  const gradient = ctx.createLinearGradient(0, 0, 0, 280);
+  gradient.addColorStop(0, 'rgba(37,99,235,0.15)');
+  gradient.addColorStop(1, 'rgba(37,99,235,0.00)');
+
+  trendChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: d.labels || [],
+      datasets: [{
+        label: `${city} AQI`,
+        data: d.values || [],
+        borderColor: '#2563EB',
+        backgroundColor: gradient,
+        borderWidth: 2.5,
+        tension: 0.4,
+        fill: true,
+        pointRadius: 0,
+        pointHoverRadius: 5,
+        pointHoverBackgroundColor: '#2563EB',
+        pointHoverBorderColor: '#FFFFFF',
+        pointHoverBorderWidth: 2,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      animation: { duration: 700, easing: 'easeOutQuart' },
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` AQI ${ctx.parsed.y} — ${aqiLabel(ctx.parsed.y)}`
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { maxTicksLimit: 7, maxRotation: 0 },
+          grid: { display: false }
+        },
+        y: {
+          min: 0,
+          grid: { color: '#F0F2F7' }
+        }
+      }
+    }
+  });
+}
+loadTrendChart('Delhi');
+</script>
+{% endblock %}

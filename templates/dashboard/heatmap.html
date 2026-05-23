@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}India AQI Heatmap{% endblock %}
+
+{% block extra_head %}
+<style>
+  #map { height: 600px; width: 100%; border-radius: var(--radius); border: 1px solid var(--border); }
+  .leaflet-popup-content-wrapper {
+    background: var(--bg-2) !important;
+    border: 1px solid var(--border) !important;
+    color: var(--text) !important;
+    border-radius: 8px !important;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important;
+    font-family: var(--mono) !important;
+  }
+  .leaflet-popup-tip { background: var(--bg-2) !important; }
+  .leaflet-popup-content { font-size: 0.78rem; line-height: 1.6; }
+  .popup-city { font-size:1rem; font-weight:700; font-family:var(--font); margin-bottom:0.5rem; }
+  .popup-aqi  { font-size:2rem; font-weight:800; }
+  .popup-grid { display:grid; grid-template-columns:1fr 1fr; gap:0.25rem 1rem; margin-top:0.5rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header fade-in">
+  <h1>India <span style="color:var(--accent)">Pollution Heatmap</span></h1>
+  <p>Click any city marker for detailed air quality data · Color indicates pollution severity</p>
+</div>
+
+<!-- Legend -->
+<div style="display:flex; gap:1rem; flex-wrap:wrap; margin-bottom:1.5rem;" class="fade-in">
+  {% for label, color in [('Good (0–50)','#00D4AA'),('Moderate (51–100)','#FFD166'),('Sensitive (101–150)','#FF8C42'),('Unhealthy (151–200)','#FF6B35'),('Very Unhealthy (201–300)','#FF4757'),('Hazardous (300+)','#C62828')] %}
+  <div style="display:flex;align-items:center;gap:6px;">
+    <div style="width:12px;height:12px;border-radius:50%;background:{{ color }};box-shadow:0 0 6px {{ color }};"></div>
+    <span class="mono text-xs text-muted">{{ label }}</span>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="card fade-in" style="padding:0; overflow:hidden;">
+  <div id="map"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Leaflet dark tile ──────────────────────────────────────────────────────
+const map = L.map('map', { center: [22.5, 82.0], zoom: 5, zoomControl: true });
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  attribution: '© OpenStreetMap © CARTO',
+  maxZoom: 18
+}).addTo(map);
+
+// ── Load heatmap data ──────────────────────────────────────────────────────
+function aqiColor(aqi) {
+  if (aqi <= 50)  return '#00D4AA';
+  if (aqi <= 100) return '#FFD166';
+  if (aqi <= 150) return '#FF8C42';
+  if (aqi <= 200) return '#FF6B35';
+  if (aqi <= 300) return '#FF4757';
+  return '#C62828';
+}
+function aqiLabel(aqi) {
+  if (aqi <= 50)  return 'Good';
+  if (aqi <= 100) return 'Moderate';
+  if (aqi <= 150) return 'Unhealthy for Sensitive Groups';
+  if (aqi <= 200) return 'Unhealthy';
+  if (aqi <= 300) return 'Very Unhealthy';
+  return 'Hazardous';
+}
+
+async function loadHeatmap() {
+  const res  = await fetch('/api/heatmap');
+  const json = await res.json();
+  const features = json.data?.features || [];
+
+  features.forEach(f => {
+    const { city_name, state, aqi, pm25, pm10, category, timestamp } = f.properties;
+    const [lng, lat] = f.geometry.coordinates;
+    const color = aqiColor(aqi || 0);
+    const size  = Math.max(20, Math.min(50, (aqi || 100) / 6));
+
+    // Custom pulsing marker
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="
+        width:${size}px; height:${size}px;
+        background:${color}30; border:2px solid ${color};
+        border-radius:50%; display:flex; align-items:center; justify-content:center;
+        box-shadow:0 0 ${size/2}px ${color}60;
+        font-family:'DM Mono',monospace; font-size:${size > 35 ? 10 : 9}px;
+        font-weight:600; color:${color};
+      ">${Math.round(aqi||0)}</div>`,
+      iconSize: [size, size],
+      iconAnchor: [size/2, size/2],
+    });
+
+    const updated = timestamp ? new Date(timestamp).toLocaleString('en-IN') : '—';
+    const popup = `
+      <div class="popup-city">${city_name}</div>
+      <div class="mono" style="font-size:0.7rem;color:#9AA0B2;">${state}</div>
+      <div class="popup-aqi" style="color:${color};">${Math.round(aqi||0)}</div>
+      <div class="mono" style="font-size:0.65rem;color:${color};">${aqiLabel(aqi||0)}</div>
+      <div class="popup-grid">
+        <div><span style="color:#9AA0B2">PM2.5</span><br>${pm25 ? pm25.toFixed(1) : '—'} µg/m³</div>
+        <div><span style="color:#9AA0B2">PM10</span><br>${pm10 ? pm10.toFixed(1) : '—'} µg/m³</div>
+      </div>
+      <div style="margin-top:0.5rem;font-size:0.65rem;color:#5C6478;">Updated: ${updated}</div>
+      <a href="/dashboard/city/${city_name}" style="display:block;margin-top:0.75rem;text-align:center;padding:5px;background:#00D4AA20;border:1px solid #00D4AA40;border-radius:4px;color:#00D4AA;text-decoration:none;font-size:0.7rem;">View Full Detail →</a>
+    `;
+
+    L.marker([lat, lng], { icon }).addTo(map).bindPopup(popup, { maxWidth: 220 });
+  });
+}
+
+loadHeatmap();
+</script>
+{% endblock %}

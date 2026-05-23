@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}AQI India{% endblock %} — Air Quality Platform</title>
+
+  <!-- SF Pro via system font stack — Apple San Francisco first, then system equivalents -->
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@300;400;500;600&display=swap');
+  </style>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <style>
+    /* ── SF Pro System Font Stack ──────────────────────────────────────── */
+    :root {
+      /* SF Pro / San Francisco font stack */
+      --font: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text',
+              'Helvetica Neue', 'Inter', Arial, sans-serif;
+      --font-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display',
+                      'Helvetica Neue', 'Inter', Arial, sans-serif;
+      --mono: 'SF Mono', 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+
+      /* ── Light Design Tokens ──────────────────────────────────────────── */
+      --bg:            #F5F7FA;
+      --bg-2:          #FFFFFF;
+      --bg-3:          #F0F2F7;
+      --bg-4:          #E8EBF2;
+      --border:        #E2E6EF;
+      --border-2:      #CDD3E0;
+      --border-focus:  #4F8EF7;
+
+      --text:          #0D1117;
+      --text-2:        #4B5563;
+      --text-3:        #9CA3AF;
+      --text-inv:      #FFFFFF;
+
+      /* Accent — clean cobalt blue, modern iOS/macOS feel */
+      --accent:        #2563EB;
+      --accent-light:  #EFF6FF;
+      --accent-mid:    #BFDBFE;
+      --accent-dim:    #2563EB18;
+      --accent-glow:   #2563EB30;
+
+      /* AQI Status Colors */
+      --green:         #10B981;
+      --green-light:   #D1FAE5;
+      --yellow:        #F59E0B;
+      --yellow-light:  #FEF3C7;
+      --orange:        #F97316;
+      --orange-light:  #FFEDD5;
+      --red:           #EF4444;
+      --red-light:     #FEE2E2;
+      --purple:        #8B5CF6;
+      --purple-light:  #EDE9FE;
+      --blue:          #3B82F6;
+      --blue-light:    #DBEAFE;
+      --crimson:       #DC2626;
+      --crimson-light: #FEE2E2;
+
+      /* Geometry */
+      --radius:        14px;
+      --radius-sm:     8px;
+      --radius-xs:     5px;
+      --radius-lg:     20px;
+      --shadow-sm:     0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+      --shadow:        0 4px 16px rgba(0,0,0,0.07), 0 2px 6px rgba(0,0,0,0.05);
+      --shadow-md:     0 8px 32px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.06);
+      --shadow-lg:     0 20px 60px rgba(0,0,0,0.12), 0 4px 16px rgba(0,0,0,0.08);
+      --shadow-accent: 0 4px 20px rgba(37,99,235,0.25);
+
+      /* Motion */
+      --ease-out:      cubic-bezier(0.16, 1, 0.3, 1);
+      --ease-spring:   cubic-bezier(0.34, 1.56, 0.64, 1);
+      --ease-smooth:   cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* ── Reset ────────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 16px; scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+      line-height: 1.5;
+    }
+
+    /* ── Scrollbar ────────────────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 99px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-3); }
+
+    /* ── Subtle page background texture ──────────────────────────────── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 800px 600px at 10% 0%, rgba(37,99,235,0.04) 0%, transparent 70%),
+        radial-gradient(ellipse 600px 500px at 90% 100%, rgba(139,92,246,0.04) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── Navigation ───────────────────────────────────────────────────── */
+    .nav {
+      position: sticky; top: 0; z-index: 200;
+      background: rgba(255,255,255,0.88);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 2rem;
+      height: 58px;
+      transition: box-shadow 0.3s var(--ease-smooth);
+    }
+    .nav.scrolled {
+      box-shadow: var(--shadow);
+    }
+    .nav-brand {
+      display: flex; align-items: center; gap: 10px;
+      text-decoration: none; color: var(--text);
+    }
+    .nav-logo {
+      width: 30px; height: 30px;
+      background: linear-gradient(135deg, var(--accent), #7C3AED);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 2px 8px rgba(37,99,235,0.35);
+      position: relative;
+      overflow: hidden;
+    }
+    .nav-logo::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.25) 0%, transparent 60%);
+    }
+    .nav-logo-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: white;
+      box-shadow: 0 0 8px rgba(255,255,255,0.8);
+      animation: breathe 3s ease-in-out infinite;
+      position: relative; z-index: 1;
+    }
+    @keyframes breathe {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.7; transform: scale(0.85); }
+    }
+    .nav-brand-text {
+      font-family: var(--font-display);
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--text);
+    }
+    .nav-brand-text em {
+      font-style: normal;
+      background: linear-gradient(135deg, var(--accent), #7C3AED);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .nav-live-badge {
+      font-family: var(--mono);
+      font-size: 0.6rem;
+      font-weight: 600;
+      color: var(--green);
+      background: var(--green-light);
+      border: 1px solid rgba(16,185,129,0.25);
+      padding: 2px 7px;
+      border-radius: 99px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      display: flex; align-items: center; gap: 4px;
+    }
+    .nav-live-badge::before {
+      content: '';
+      width: 5px; height: 5px; border-radius: 50%;
+      background: var(--green);
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 rgba(16,185,129,0.4); }
+      50% { opacity: 0.8; transform: scale(0.9); box-shadow: 0 0 0 4px rgba(16,185,129,0); }
+    }
+
+    .nav-links { display: flex; gap: 2px; align-items: center; }
+    .nav-links a {
+      display: flex; align-items: center; gap: 6px;
+      font-family: var(--font);
+      font-size: 0.82rem;
+      font-weight: 500;
+      color: var(--text-2);
+      text-decoration: none;
+      padding: 6px 12px;
+      border-radius: var(--radius-sm);
+      transition: all 0.18s var(--ease-smooth);
+      letter-spacing: -0.01em;
+    }
+    .nav-links a:hover {
+      color: var(--accent);
+      background: var(--accent-dim);
+    }
+    .nav-links a.active {
+      color: var(--accent);
+      background: var(--accent-light);
+      font-weight: 600;
+    }
+    .nav-icon {
+      width: 16px; height: 16px;
+      opacity: 0.7;
+    }
+
+    /* ── Layout ───────────────────────────────────────────────────────── */
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 2rem 2rem 4rem;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* ── Cards ────────────────────────────────────────────────────────── */
+    .card {
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      box-shadow: var(--shadow-sm);
+      transition: box-shadow 0.25s var(--ease-smooth), border-color 0.25s var(--ease-smooth), transform 0.25s var(--ease-smooth);
+    }
+    .card:hover {
+      box-shadow: var(--shadow);
+      border-color: var(--border-2);
+    }
+    .card-lift:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 1.25rem;
+    }
+    .card-title {
+      font-size: 0.72rem;
+      font-family: var(--font);
+      font-weight: 600;
+      color: var(--text-3);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .card-value {
+      font-family: var(--font-display);
+      font-size: 2.6rem;
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: -0.03em;
+      margin-top: 0.35rem;
+    }
+
+    /* ── AQI Category Colors ──────────────────────────────────────────── */
+    .aqi-good           { color: var(--green); }
+    .aqi-moderate       { color: var(--yellow); }
+    .aqi-sensitive      { color: var(--orange); }
+    .aqi-unhealthy      { color: #EA580C; }
+    .aqi-very-unhealthy { color: var(--red); }
+    .aqi-hazardous      { color: var(--crimson); }
+
+    /* ── Badges ───────────────────────────────────────────────────────── */
+    .badge {
+      font-family: var(--font);
+      font-size: 0.68rem;
+      font-weight: 600;
+      padding: 3px 9px;
+      border-radius: 99px;
+      text-transform: capitalize;
+      letter-spacing: 0.01em;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .badge::before {
+      content: '';
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    .badge-good           { background: var(--green-light);   color: #059669; border: 1px solid rgba(16,185,129,0.2); }
+    .badge-moderate       { background: var(--yellow-light);  color: #D97706; border: 1px solid rgba(245,158,11,0.2); }
+    .badge-sensitive      { background: var(--orange-light);  color: #EA580C; border: 1px solid rgba(249,115,22,0.2); }
+    .badge-unhealthy      { background: #FEE2E2;              color: #DC2626; border: 1px solid rgba(239,68,68,0.2); }
+    .badge-very-unhealthy { background: #FEE2E2;              color: #B91C1C; border: 1px solid rgba(220,38,38,0.2); }
+    .badge-hazardous      { background: #FCE7F3;              color: #9D174D; border: 1px solid rgba(157,23,77,0.2); }
+
+    /* ── Grid helpers ─────────────────────────────────────────────────── */
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media (max-width: 1100px) { .grid-4 { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 768px)  {
+      .grid-4, .grid-3, .grid-2 { grid-template-columns: 1fr; }
+      .nav-links a span { display: none; }
+    }
+
+    /* ── Page header ──────────────────────────────────────────────────── */
+    .page-header {
+      margin-bottom: 2rem;
+      padding-top: 0.5rem;
+    }
+    .page-header h1 {
+      font-family: var(--font-display);
+      font-size: 1.9rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      color: var(--text);
+      line-height: 1.15;
+    }
+    .page-header h1 .gradient-text {
+      background: linear-gradient(135deg, var(--accent) 0%, #7C3AED 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .page-header p {
+      color: var(--text-2);
+      font-size: 0.875rem;
+      margin-top: 0.4rem;
+      font-weight: 400;
+    }
+
+    /* ── Misc utilities ───────────────────────────────────────────────── */
+    .mono { font-family: var(--mono); }
+    .text-muted { color: var(--text-2); }
+    .text-xs { font-size: 0.72rem; }
+    .text-sm { font-size: 0.875rem; }
+    .mt-1 { margin-top: 0.5rem; }
+    .mt-2 { margin-top: 1rem; }
+    .mt-3 { margin-top: 1.5rem; }
+    .flex { display: flex; }
+    .items-center { align-items: center; }
+    .gap-2 { gap: 0.5rem; }
+    .gap-3 { gap: 0.75rem; }
+
+    /* ── Alert banner ─────────────────────────────────────────────────── */
+    #alert-banner {
+      display: none;
+      background: linear-gradient(135deg, #FEF3C7, #FFFBEB);
+      border: 1px solid rgba(245,158,11,0.3);
+      border-left: 4px solid var(--yellow);
+      border-radius: var(--radius-sm);
+      padding: 0.875rem 1.125rem;
+      margin-bottom: 1.5rem;
+      font-size: 0.82rem;
+      font-weight: 500;
+      color: #92400E;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      animation: slide-down 0.4s var(--ease-out);
+    }
+    @keyframes slide-down {
+      from { opacity: 0; transform: translateY(-8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Loading spinner ──────────────────────────────────────────────── */
+    .spinner {
+      width: 20px; height: 20px;
+      border: 2.5px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: inline-block;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Chart containers ─────────────────────────────────────────────── */
+    .chart-wrap { position: relative; width: 100%; }
+    .chart-wrap canvas { width: 100% !important; }
+
+    /* ── City pill ────────────────────────────────────────────────────── */
+    .city-pill {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-family: var(--font);
+      font-size: 0.78rem;
+      font-weight: 500;
+      padding: 5px 12px;
+      border-radius: 99px;
+      background: var(--bg-3);
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: all 0.18s var(--ease-smooth);
+      color: var(--text-2);
+      user-select: none;
+    }
+    .city-pill:hover {
+      border-color: var(--accent-mid);
+      color: var(--accent);
+      background: var(--accent-light);
+    }
+    .city-pill.active {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: var(--accent-light);
+      font-weight: 600;
+      box-shadow: 0 2px 8px rgba(37,99,235,0.15);
+    }
+
+    /* ── Stat mini bar (AQI scale) ────────────────────────────────────── */
+    .aqi-bar {
+      height: 4px;
+      border-radius: 99px;
+      background: var(--bg-4);
+      overflow: hidden;
+      margin-top: 0.75rem;
+    }
+    .aqi-bar-fill {
+      height: 100%;
+      border-radius: 99px;
+      transition: width 0.8s var(--ease-out);
+    }
+
+    /* ── Fade-in animation ────────────────────────────────────────────── */
+    .fade-in {
+      animation: fadeIn 0.5s var(--ease-out) both;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Slide-up for staggered items ─────────────────────────────────── */
+    .slide-up {
+      animation: slideUp 0.45s var(--ease-out) both;
+    }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Number counter animation ─────────────────────────────────────── */
+    .count-up { transition: color 0.3s; }
+
+    /* ── Pill select row ──────────────────────────────────────────────── */
+    .pill-select-row {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-bottom: 0;
+    }
+
+    /* ── Section divider ──────────────────────────────────────────────── */
+    .section-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-3);
+      margin-bottom: 0.75rem;
+    }
+
+    /* ── Custom select ────────────────────────────────────────────────── */
+    .sf-select {
+      background: var(--bg-3);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 5px 10px;
+      border-radius: var(--radius-sm);
+      font-family: var(--font);
+      font-size: 0.78rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: border-color 0.18s;
+      outline: none;
+      -webkit-appearance: none;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%239CA3AF' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+      padding-right: 26px;
+    }
+    .sf-select:hover { border-color: var(--border-2); }
+    .sf-select:focus { border-color: var(--accent); }
+
+    /* ── Tooltip card ─────────────────────────────────────────────────── */
+    .tooltip-card {
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 0.75rem 1rem;
+      box-shadow: var(--shadow-md);
+      font-size: 0.78rem;
+      pointer-events: none;
+    }
+  </style>
+
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+<!-- ── Navigation ─────────────────────────────────────────────────────────── -->
+<nav class="nav" id="main-nav">
+  <a class="nav-brand" href="/">
+    <div class="nav-logo">
+      <div class="nav-logo-dot"></div>
+    </div>
+    <span class="nav-brand-text">AQI<em>India</em></span>
+    <span class="nav-live-badge">Live</span>
+  </a>
+  <div class="nav-links">
+    <a href="/dashboard/" class="{{ 'active' if request.path == '/dashboard/' }}">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="1" y="1" width="6" height="6" rx="1.5" fill="currentColor" opacity=".5"/>
+        <rect x="9" y="1" width="6" height="6" rx="1.5" fill="currentColor"/>
+        <rect x="1" y="9" width="6" height="6" rx="1.5" fill="currentColor"/>
+        <rect x="9" y="9" width="6" height="6" rx="1.5" fill="currentColor" opacity=".5"/>
+      </svg>
+      <span>Overview</span>
+    </a>
+    <a href="/dashboard/compare" class="{{ 'active' if '/compare' in request.path }}">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M2 12V4M6 12V7M10 12V5M14 12V9" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
+      </svg>
+      <span>Compare</span>
+    </a>
+    <a href="/dashboard/forecast" class="{{ 'active' if '/forecast' in request.path }}">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M8 4.5v4l2.5 2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      <span>Forecast</span>
+    </a>
+    <a href="/dashboard/heatmap" class="{{ 'active' if '/heatmap' in request.path }}">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="8" cy="7" r="4" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M8 11v4M5.5 13.5h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        <circle cx="8" cy="7" r="1.5" fill="currentColor"/>
+      </svg>
+      <span>Heatmap</span>
+    </a>
+    <a href="/api/aqi/current" target="_blank" style="margin-left:4px;">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span>API</span>
+    </a>
+  </div>
+</nav>
+
+<!-- ── Main content ───────────────────────────────────────────────────────── -->
+<main class="container">
+  <div id="alert-banner"></div>
+  {% block content %}{% endblock %}
+</main>
+
+<!-- ── Scripts ────────────────────────────────────────────────────────────── -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+// ── Nav scroll effect ──────────────────────────────────────────────────────
+window.addEventListener('scroll', () => {
+  document.getElementById('main-nav').classList.toggle('scrolled', window.scrollY > 10);
+}, { passive: true });
+
+// ── Global chart defaults (light theme) ───────────────────────────────────
+Chart.defaults.color = '#6B7280';
+Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif";
+Chart.defaults.font.size = 11;
+Chart.defaults.font.weight = '500';
+Chart.defaults.plugins.legend.labels.boxWidth = 10;
+Chart.defaults.plugins.legend.labels.usePointStyle = true;
+Chart.defaults.plugins.tooltip.backgroundColor = '#FFFFFF';
+Chart.defaults.plugins.tooltip.titleColor = '#0D1117';
+Chart.defaults.plugins.tooltip.bodyColor = '#4B5563';
+Chart.defaults.plugins.tooltip.borderColor = '#E2E6EF';
+Chart.defaults.plugins.tooltip.borderWidth = 1;
+Chart.defaults.plugins.tooltip.padding = 12;
+Chart.defaults.plugins.tooltip.cornerRadius = 10;
+Chart.defaults.plugins.tooltip.boxShadow = '0 4px 16px rgba(0,0,0,0.10)';
+Chart.defaults.scale.grid.color = '#F0F2F7';
+Chart.defaults.scale.grid.drawBorder = false;
+Chart.defaults.scale.ticks.padding = 8;
+
+// ── AQI color helper ──────────────────────────────────────────────────────
+function aqiColor(aqi) {
+  if (aqi <= 50)  return '#10B981';
+  if (aqi <= 100) return '#F59E0B';
+  if (aqi <= 150) return '#F97316';
+  if (aqi <= 200) return '#EA580C';
+  if (aqi <= 300) return '#EF4444';
+  return '#DC2626';
+}
+function aqiBgColor(aqi) {
+  if (aqi <= 50)  return '#D1FAE5';
+  if (aqi <= 100) return '#FEF3C7';
+  if (aqi <= 150) return '#FFEDD5';
+  if (aqi <= 200) return '#FEE2E2';
+  if (aqi <= 300) return '#FEE2E2';
+  return '#FCE7F3';
+}
+function aqiLabel(aqi) {
+  if (aqi <= 50)  return 'Good';
+  if (aqi <= 100) return 'Moderate';
+  if (aqi <= 150) return 'Unhealthy for Sensitive';
+  if (aqi <= 200) return 'Unhealthy';
+  if (aqi <= 300) return 'Very Unhealthy';
+  return 'Hazardous';
+}
+function aqiBadgeClass(cat) {
+  if (!cat) return 'badge-moderate';
+  const c = cat.toLowerCase();
+  if (c.includes('good'))      return 'badge-good';
+  if (c.includes('moderate'))  return 'badge-moderate';
+  if (c.includes('sensitive')) return 'badge-sensitive';
+  if (c.includes('very'))      return 'badge-very-unhealthy';
+  if (c.includes('hazard'))    return 'badge-hazardous';
+  if (c.includes('unhealthy')) return 'badge-unhealthy';
+  return 'badge-moderate';
+}
+
+// ── Animated counter ──────────────────────────────────────────────────────
+function animateCounter(el, target, duration = 800) {
+  const start = performance.now();
+  const from  = parseFloat(el.textContent) || 0;
+  function update(now) {
+    const t   = Math.min((now - start) / duration, 1);
+    const val = from + (target - from) * (t < 0.5 ? 2*t*t : -1+(4-2*t)*t);
+    el.textContent = Math.round(val);
+    if (t < 1) requestAnimationFrame(update);
+  }
+  requestAnimationFrame(update);
+}
+
+// ── Fetch alerts ──────────────────────────────────────────────────────────
+async function checkAlerts() {
+  try {
+    const res  = await fetch('/api/alerts?threshold=200');
+    const json = await res.json();
+    if (json.data?.alerts?.length > 0) {
+      const banner = document.getElementById('alert-banner');
+      const cities = json.data.alerts.map(a => `${a.city_name} (AQI ${a.avg_aqi})`).join(' · ');
+      banner.innerHTML = `⚠️ <strong>High Pollution Alert:</strong> ${cities}`;
+      banner.style.display = 'flex';
+    }
+  } catch (e) {}
+}
+checkAlerts();
+
+// ── Intersection observer for fade-in ─────────────────────────────────────
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.style.animationPlayState = 'running';
+    }
+  });
+}, { threshold: 0.1 });
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.fade-in, .slide-up').forEach(el => {
+    el.style.animationPlayState = 'paused';
+    observer.observe(el);
+  });
+});
+</script>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

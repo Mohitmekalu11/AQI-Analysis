@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Compare Cities{% endblock %}
+
+{% block content %}
+<div class="page-header fade-in">
+  <h1>City <span style="color:var(--accent)">Comparison</span></h1>
+  <p>Select up to 5 cities to compare AQI trends side-by-side</p>
+</div>
+
+<div class="card fade-in" style="margin-bottom:1.5rem;">
+  <div class="card-title" style="margin-bottom:0.75rem;">Select Cities</div>
+  <div style="display:flex; gap:0.5rem; flex-wrap:wrap;" id="city-picker">
+    {% for city in cities %}
+    <div class="city-pill {{ 'active' if city.city_name in ['Delhi','Mumbai','Pune'] }}"
+         onclick="toggleCity('{{ city.city_name }}', this)">
+      {{ city.city_name }}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="card fade-in" style="animation-delay:0.1s;">
+  <div class="card-header">
+    <div class="card-title">7-Day AQI Comparison</div>
+    <div id="selected-cities-label" class="mono text-xs text-muted"></div>
+  </div>
+  <div class="chart-wrap" style="height:350px;"><canvas id="chart-compare"></canvas></div>
+</div>
+
+<div id="summary-cards" class="grid-3 mt-2 fade-in" style="animation-delay:0.15s;"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let selected = ['Delhi','Mumbai','Pune'];
+let cmpChart;
+
+function toggleCity(city, el) {
+  if (el.classList.contains('active')) {
+    if (selected.length <= 2) return; // minimum 2
+    el.classList.remove('active');
+    selected = selected.filter(c => c !== city);
+  } else {
+    if (selected.length >= 5) { alert('Max 5 cities'); return; }
+    el.classList.add('active');
+    selected.push(city);
+  }
+  loadComparison();
+}
+
+async function loadComparison() {
+  document.getElementById('selected-cities-label').textContent = selected.join(' vs ');
+  const res  = await fetch(`/api/compare?cities=${selected.join(',')}`);
+  const json = await res.json();
+  const d    = json.data || {};
+
+  if (cmpChart) cmpChart.destroy();
+  const ctx = document.getElementById('chart-compare').getContext('2d');
+  cmpChart = new Chart(ctx, {
+    type: 'line',
+    data: d,
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      interaction: { mode:'index', intersect:false },
+      plugins: { legend:{ position:'top', labels:{ usePointStyle:true } } },
+      scales: { y:{ min:0 }, x:{ ticks:{ maxRotation:0 } } }
+    }
+  });
+
+  // Summary cards
+  const summaryEl = document.getElementById('summary-cards');
+  summaryEl.innerHTML = '';
+  for (const ds of (d.datasets || [])) {
+    const vals = ds.data.filter(v => v !== null);
+    const avg  = vals.length ? (vals.reduce((a,b) => a+b, 0) / vals.length) : 0;
+    const max  = vals.length ? Math.max(...vals) : 0;
+    summaryEl.innerHTML += `
+      <div class="card">
+        <div class="card-title">${ds.label}</div>
+        <div class="card-value" style="color:${ds.borderColor};">${avg.toFixed(0)}</div>
+        <div class="mono text-xs text-muted mt-1">7-day average AQI</div>
+        <div style="margin-top:0.75rem; display:flex; gap:1rem;">
+          <div><div class="mono text-xs text-muted">Peak</div><div class="mono text-xs">${max.toFixed(0)}</div></div>
+          <div><div class="mono text-xs text-muted">Category</div><div class="mono text-xs" style="color:${ds.borderColor};">${aqiLabel(avg)}</div></div>
+        </div>
+      </div>`;
+  }
+}
+loadComparison();
+</script>
+{% endblock %}

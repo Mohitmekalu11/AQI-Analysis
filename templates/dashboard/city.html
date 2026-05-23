@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}{{ city.city_name }} AQI{% endblock %}
+
+{% block content %}
+{% set aqi = latest.aqi | int if latest and latest.aqi else 0 %}
+{% set cat = latest.category if latest else 'Unknown' %}
+
+<div class="page-header fade-in">
+  <a href="/dashboard/" style="font-family:var(--mono);font-size:0.75rem;color:var(--text-3);text-decoration:none;">← Back to Overview</a>
+  <div style="display:flex; align-items:flex-end; gap:1.5rem; margin-top:1rem; flex-wrap:wrap;">
+    <div>
+      <div class="mono text-xs text-muted">{{ city.state }}, India</div>
+      <h1 style="font-size:2.5rem;">{{ city.city_name }}</h1>
+    </div>
+    <div style="margin-bottom:0.4rem;">
+      <span class="badge {{ 'badge-good' if aqi <= 50 else 'badge-moderate' if aqi <= 100 else 'badge-sensitive' if aqi <= 150 else 'badge-unhealthy' if aqi <= 200 else 'badge-very-unhealthy' if aqi <= 300 else 'badge-hazardous' }}" style="font-size:0.75rem; padding:5px 12px;">
+        {{ cat }}
+      </span>
+    </div>
+  </div>
+</div>
+
+<!-- ── Stat Row ──────────────────────────────────────────────────────────── -->
+<div class="grid-4" style="margin-bottom:2rem;">
+  <div class="card fade-in" style="animation-delay:0.05s;">
+    <div class="card-title">AQI Index</div>
+    <div class="card-value" style="color:{{ '#00D4AA' if aqi <= 50 else '#FFD166' if aqi <= 100 else '#FF8C42' if aqi <= 150 else '#FF6B35' if aqi <= 200 else '#FF4757' if aqi <= 300 else '#C62828' }};">{{ aqi }}</div>
+    <div class="mono text-xs text-muted mt-1">US EPA Scale (0–500)</div>
+  </div>
+  <div class="card fade-in" style="animation-delay:0.1s;">
+    <div class="card-title">PM2.5 Fine Particles</div>
+    <div class="card-value" style="color:var(--blue);">{{ latest.pm25 | round(1) if latest and latest.pm25 else '—' }}</div>
+    <div class="mono text-xs text-muted mt-1">µg/m³</div>
+  </div>
+  <div class="card fade-in" style="animation-delay:0.15s;">
+    <div class="card-title">PM10 Coarse Particles</div>
+    <div class="card-value" style="color:var(--purple);">{{ latest.pm10 | round(1) if latest and latest.pm10 else '—' }}</div>
+    <div class="mono text-xs text-muted mt-1">µg/m³</div>
+  </div>
+  <div class="card fade-in" style="animation-delay:0.2s;">
+    <div class="card-title">NO₂ Nitrogen Dioxide</div>
+    <div class="card-value" style="color:var(--orange);">{{ latest.no2 | round(1) if latest and latest.no2 else '—' }}</div>
+    <div class="mono text-xs text-muted mt-1">µg/m³</div>
+  </div>
+</div>
+
+<!-- ── Charts ────────────────────────────────────────────────────────────── -->
+<div class="grid-2">
+  <div class="card fade-in" style="animation-delay:0.25s;">
+    <div class="card-header">
+      <div>
+        <div class="card-title">24-Hour AQI Trend</div>
+      </div>
+      <select id="trend-hours" style="background:var(--bg-3);border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:4px;font-family:var(--mono);font-size:0.7rem;" onchange="loadTrend(this.value)">
+        <option value="24">Last 24h</option>
+        <option value="72">Last 3 days</option>
+        <option value="168" selected>Last 7 days</option>
+      </select>
+    </div>
+    <div class="chart-wrap" style="height:260px;"><canvas id="chart-trend"></canvas></div>
+  </div>
+
+  <div class="card fade-in" style="animation-delay:0.3s;">
+    <div class="card-header"><div class="card-title">7-Day AQI Forecast</div><span class="badge badge-moderate" id="model-badge">Loading...</span></div>
+    <div class="chart-wrap" style="height:260px;"><canvas id="chart-forecast"></canvas></div>
+  </div>
+</div>
+
+<div class="card mt-2 fade-in" style="animation-delay:0.35s;">
+  <div class="card-header"><div class="card-title">All Pollutants (24h Average)</div></div>
+  <div class="chart-wrap" style="height:220px;"><canvas id="chart-pollutants"></canvas></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const CITY = "{{ city.city_name }}";
+
+// ── Trend ──────────────────────────────────────────────────────────────────
+let tChart;
+async function loadTrend(hours) {
+  const res  = await fetch(`/api/trend?city=${CITY}&hours=${hours}`);
+  const json = await res.json();
+  const d    = json.data || {};
+  if (tChart) tChart.destroy();
+  const ctx = document.getElementById('chart-trend').getContext('2d');
+  const g   = ctx.createLinearGradient(0, 0, 0, 260);
+  g.addColorStop(0, '#38BDF830'); g.addColorStop(1, '#38BDF800');
+  tChart = new Chart(ctx, {
+    type:'line', data:{ labels:d.labels||[], datasets:[{label:'AQI',data:d.values||[],borderColor:'#38BDF8',backgroundColor:g,borderWidth:2,tension:0.4,fill:true,pointRadius:0,pointHoverRadius:5}]},
+    options:{ responsive:true,maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{ticks:{maxTicksLimit:7,maxRotation:0}}, y:{min:0} } }
+  });
+}
+loadTrend(168);
+
+// ── Forecast ───────────────────────────────────────────────────────────────
+async function loadForecast() {
+  const res  = await fetch(`/api/predictions?city=${CITY}`);
+  const json = await res.json();
+  const preds = json.data?.predictions || [];
+  const model = preds[0]?.model_used || '—';
+  document.getElementById('model-badge').textContent = model;
+
+  const ctx = document.getElementById('chart-forecast').getContext('2d');
+  new Chart(ctx, {
+    type:'bar',
+    data:{
+      labels: preds.map(p => new Date(p.predicted_date).toLocaleDateString('en-IN',{weekday:'short',month:'short',day:'numeric'})),
+      datasets:[{
+        label:'Predicted AQI',
+        data: preds.map(p => p.predicted_aqi),
+        backgroundColor: preds.map(p => aqiColor(p.predicted_aqi)+'60'),
+        borderColor:     preds.map(p => aqiColor(p.predicted_aqi)),
+        borderWidth:1.5, borderRadius:6,
+      }]
+    },
+    options:{ responsive:true,maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{min:0} } }
+  });
+}
+loadForecast();
+
+// ── Pollutants Bar ─────────────────────────────────────────────────────────
+async function loadPollutants() {
+  const res  = await fetch(`/api/pollutants?city=${CITY}`);
+  const json = await res.json();
+  const p    = json.data?.pollutants || {};
+  const labels = ['PM2.5','PM10','CO/10','NO₂','SO₂','O₃'];
+  const values = [p.pm25, p.pm10, p.co ? p.co/10 : null, p.no2, p.so2, p.o3];
+  const colors = ['#38BDF8','#A78BFA','#FFD166','#FF8C42','#FF6B35','#00D4AA'];
+
+  const ctx = document.getElementById('chart-pollutants').getContext('2d');
+  new Chart(ctx, {
+    type:'bar',
+    data:{ labels, datasets:[{ data:values, backgroundColor:colors.map(c=>c+'50'), borderColor:colors, borderWidth:1.5, borderRadius:6 }]},
+    options:{ responsive:true,maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{min:0} } }
+  });
+}
+loadPollutants();
+</script>
+{% endblock %}
