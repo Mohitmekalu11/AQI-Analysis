@@ -1,4 +1,4 @@
-"""City model — stores Indian city metadata."""
+
 
 from app import db
 

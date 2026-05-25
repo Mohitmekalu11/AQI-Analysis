@@ -1,4 +1,4 @@
-"""AirQualityReading model — one row per city per fetch."""
+
 
 from datetime import datetime
 from app import db
