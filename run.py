@@ -10,6 +10,16 @@ import logging
 from app import create_app, db
 from app.models.city import City, INDIAN_CITIES
 from app.models.air_quality import AirQualityReading, AQIPrediction
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+print("GROK_API_KEY =", repr(os.getenv("GROK_API_KEY")))
+
+for k, v in os.environ.items():
+    if "GROK" in k.upper() or "XAI" in k.upper():
+        print(k, "=", repr(v))
 
 logging.basicConfig(
     level=logging.INFO,

@@ -1,0 +1,883 @@
+{% extends "base.html" %}
+{% block title %}AI Assistant — SIH1734{% endblock %}
+
+{% block extra_head %}
+<style>
+/* ── AI Assistant Page ─────────────────────────────────────────── */
+.ai-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+@media (max-width: 900px) { .ai-grid { grid-template-columns: 1fr; } }
+
+.ai-card {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.ai-card-header {
+  padding: 1rem 1.25rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.ai-card-header h3 {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+}
+.ai-card-body { padding: 1.25rem; }
+
+/* ── Badge ──────────────────────────────────────────────────────── */
+.badge-groq {
+  font-size: 0.6rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #4285f4, #a855f7);
+  color: #fff;
+  padding: 2px 7px;
+  border-radius: 999px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.badge-isro {
+  font-size: 0.6rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #f97316, #ef4444);
+  color: #fff;
+  padding: 2px 7px;
+  border-radius: 999px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* ── Chatbot ─────────────────────────────────────────────────────── */
+.chat-messages {
+  height: 320px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  scroll-behavior: smooth;
+}
+.chat-bubble {
+  max-width: 85%;
+  padding: 0.65rem 0.9rem;
+  border-radius: 12px;
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+.chat-bubble.user {
+  align-self: flex-end;
+  background: var(--accent-light);
+  border: 1px solid var(--accent-mid);
+  color: var(--text);
+}
+.chat-bubble.ai {
+  align-self: flex-start;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+.chat-bubble.typing {
+  align-self: flex-start;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  color: var(--text-3);
+  font-style: italic;
+}
+.chat-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+.suggestion-pill {
+  font-size: 0.72rem;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--bg-4, var(--bg-3));
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.suggestion-pill:hover {
+  background: var(--accent-light);
+  border-color: var(--accent-mid);
+  color: var(--text);
+}
+.chat-input-row {
+  display: flex;
+  gap: 0.5rem;
+}
+.chat-input {
+  flex: 1;
+  padding: 0.6rem 0.85rem;
+  font-size: 0.82rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.15s;
+}
+.chat-input:focus { border-color: var(--accent-mid); }
+.chat-send-btn {
+  padding: 0.6rem 1rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  background:  #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.chat-send-btn:hover { opacity: 0.85; }
+.chat-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Health Advisor ──────────────────────────────────────────────── */
+.form-row { margin-bottom: 1rem; }
+.form-label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-3);
+  margin-bottom: 0.4rem;
+}
+.form-select, .form-input {
+  width: 100%;
+  padding: 0.55rem 0.8rem;
+  font-size: 0.82rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.15s;
+  box-sizing: border-box;
+}
+.form-select:focus, .form-input:focus { border-color: var(--accent-mid); }
+.checkbox-group { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.4rem; }
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  color: var(--text-2);
+  cursor: pointer;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  transition: all 0.15s;
+}
+.checkbox-label:hover { border-color: var(--accent-mid); background: var(--accent-light); }
+.checkbox-label input { accent-color: var(--accent-mid, #2563eb); }
+
+.advice-result {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  display: none;
+}
+.advice-result.show { display: block; }
+.risk-badge {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: 999px;
+  margin-bottom: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.risk-low      { background: #d1fae5; color: #065f46; }
+.risk-moderate { background: #fef3c7; color: #92400e; }
+.risk-high     { background: #fee2e2; color: #991b1b; }
+.risk-veryhigh { background: #f3e8ff; color: #6b21a8; }
+.risk-hazardous{ background: #4a0000; color: #fca5a5; }
+.advice-list { margin: 0.5rem 0 0; padding-left: 1.1rem; }
+.advice-list li { font-size: 0.8rem; color: var(--text-2); margin-bottom: 0.3rem; line-height: 1.45; }
+
+/* ── Satellite Panel ──────────────────────────────────────────────── */
+.satellite-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.sat-stat {
+  text-align: center;
+  padding: 0.75rem 0.5rem;
+  background: var(--bg-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+}
+.sat-stat-val {
+  font-family: var(--mono, monospace);
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.sat-stat-lbl {
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-3);
+  margin-top: 3px;
+}
+.no2-heatmap {
+  width: 100%;
+  height: 180px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  position: relative;
+  background: var(--bg-3);
+}
+.no2-canvas { width: 100%; height: 100%; display: block; }
+.heatmap-legend {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  font-size: 0.7rem;
+  color: var(--text-3);
+}
+.legend-bar {
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(to right, #1a9641, #a6d96a, #ffffbf, #fdae61, #d73027, #7b0000);
+}
+
+.interpretation-box {
+  margin-top: 1rem;
+  padding: 0.85rem 1rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: var(--text-2);
+  min-height: 60px;
+}
+
+/* ── Report section ─────────────────────────────────────────────── */
+.report-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+@media (max-width: 600px) { .report-grid { grid-template-columns: 1fr; } }
+.report-section {
+  padding: 0.8rem;
+  background: var(--bg-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+}
+.report-section h4 {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-3);
+  margin: 0 0 0.5rem;
+}
+.report-section p, .report-section li {
+  font-size: 0.78rem;
+  color: var(--text-2);
+  line-height: 1.5;
+  margin: 0;
+}
+.report-section ul { padding-left: 1rem; margin: 0; }
+.report-section li { margin-bottom: 0.25rem; }
+
+/* ── Full-width card ─────────────────────────────────────────────── */
+.ai-card-full {
+  grid-column: 1 / -1;
+}
+
+/* ── Loading spinner ─────────────────────────────────────────────── */
+.spinner {
+  display: inline-block;
+  width: 14px; height: 14px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent-mid, #2563eb);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.btn {
+  padding: 0.55rem 1.1rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.btn-primary { background: var(--accent-mid, #2563eb); color: #fff; }
+.btn-secondary {
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+}
+.btn:hover { opacity: 0.85; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header" style="margin-bottom: 1.5rem;">
+  <h1 style="font-size:1.5rem; font-weight:800; margin:0 0 0.25rem;">
+    🤖 AI Assistant
+  </h1>
+  <p style="font-size:0.83rem; color:var(--text-3); margin:0;">
+    Powered by GROQ · SIH1734 — ISRO SAC Satellite Downscaling Platform
+  </p>
+</div>
+
+<div class="ai-grid">
+
+  <!-- ── Chatbot ─────────────────────────────────────────────────── -->
+  <div class="ai-card">
+    <div class="ai-card-header">
+      <span>💬</span>
+      <h3>AQI Chatbot</h3>
+      <span class="badge-groq">GROQ</span>
+    </div>
+    <div class="ai-card-body">
+      <!-- City context selector -->
+      <div style="display:flex; gap:0.5rem; margin-bottom:1rem; align-items:center;">
+        <label class="form-label" style="margin:0; white-space:nowrap;">City context:</label>
+        <select id="chatCitySelect" class="form-select" style="flex:1">
+          <option value="">— none —</option>
+          {% for city in cities %}
+          <option value="{{ city.city_name }}">{{ city.city_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="chat-messages" id="chatMessages">
+        <div class="chat-bubble ai">
+          👋 Hi! I'm your AQI Assistant. Ask me anything about air quality, health precautions, or pollution in Indian cities.
+        </div>
+        <div class="chat-suggestions">
+          <span class="suggestion-pill" onclick="sendSuggestion(this)">Is Delhi air quality safe today?</span>
+          <span class="suggestion-pill" onclick="sendSuggestion(this)">What does AQI 200 mean?</span>
+          <span class="suggestion-pill" onclick="sendSuggestion(this)">Best time to exercise outdoors in Mumbai?</span>
+        </div>
+      </div>
+
+      <div class="chat-input-row">
+        <input type="text" id="chatInput" class="chat-input"
+               placeholder="Ask about AQI, health tips, forecasts…"
+               onkeydown="if(event.key==='Enter') sendChat()">
+        <button class="chat-send-btn" onclick="sendChat()" id="chatSendBtn">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Health Advisor ──────────────────────────────────────────── -->
+  <div class="ai-card">
+    <div class="ai-card-header">
+      <span>🩺</span>
+      <h3>Personalized Health Advisor</h3>
+      <span class="badge-groq">GROQ</span>
+    </div>
+    <div class="ai-card-body">
+      <div class="form-row">
+        <label class="form-label">City</label>
+        <select id="advisorCity" class="form-select">
+          {% for city in cities %}
+          <option value="{{ city.city_name }}">{{ city.city_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-row">
+        <label class="form-label">Age Group</label>
+        <select id="advisorAge" class="form-select">
+          <option value="adult">Adult (18–60)</option>
+          <option value="child">Child (under 18)</option>
+          <option value="elderly">Elderly (60+)</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label class="form-label">Planned Activity</label>
+        <select id="advisorActivity" class="form-select">
+          <option value="general outdoor">General outdoor</option>
+          <option value="exercise">Exercise / Running</option>
+          <option value="outdoor_work">Outdoor work</option>
+          <option value="commuting">Commuting</option>
+          <option value="indoor">Staying indoors</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label class="form-label">Health Conditions (select all that apply)</label>
+        <div class="checkbox-group">
+          <label class="checkbox-label"><input type="checkbox" value="asthma"> Asthma</label>
+          <label class="checkbox-label"><input type="checkbox" value="heart disease"> Heart Disease</label>
+          <label class="checkbox-label"><input type="checkbox" value="diabetes"> Diabetes</label>
+          <label class="checkbox-label"><input type="checkbox" value="COPD"> COPD</label>
+          <label class="checkbox-label"><input type="checkbox" value="pregnancy"> Pregnancy</label>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="getHealthAdvice()" id="advisorBtn" style="width:100%">
+        Get AI Health Advice
+      </button>
+
+      <div class="advice-result" id="adviceResult">
+        <div id="riskBadge" class="risk-badge"></div>
+        <p id="adviceSummary" style="font-size:0.82rem; color:var(--text-2); margin:0 0 0.6rem;"></p>
+        <div id="adviceActions"></div>
+        <p id="maskRec" style="font-size:0.75rem; color:var(--text-3); margin-top:0.5rem;"></p>
+        <p id="ventilationAdv" style="font-size:0.75rem; color:var(--text-3); margin-top:0.25rem;"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Satellite NO2 Viewer (SIH1734) ────────────────────────── -->
+  <div class="ai-card">
+    <div class="ai-card-header">
+      <span>🛰️</span>
+      <h3>Satellite NO₂ Downscaling</h3>
+      <span class="badge-iro">SIH1734 · ISRO</span>
+    </div>
+    <div class="ai-card-body">
+      <div style="display:flex; gap:0.5rem; margin-bottom:1rem; align-items:center;">
+        <select id="satelliteCity" class="form-select" style="flex:1">
+          {% for city in cities %}
+          <option value="{{ city.city_name }}">{{ city.city_name }}</option>
+          {% endfor %}
+        </select>
+        <select id="mlMethod" class="form-select" style="width:130px">
+          <option value="xgboost">XGBoost</option>
+          <option value="random_forest">Random Forest</option>
+          <option value="ann">ANN (MLP)</option>
+        </select>
+        <button class="btn btn-primary" onclick="loadSatellite()" id="satBtn">Run</button>
+      </div>
+
+      <div class="satellite-stats" id="satStats" style="display:none">
+        <div class="sat-stat">
+          <div class="sat-stat-val" id="satNo2Col">—</div>
+          <div class="sat-stat-lbl">Satellite NO₂ (µmol/m²)</div>
+        </div>
+        <div class="sat-stat">
+          <div class="sat-stat-val" id="satGroundNo2">—</div>
+          <div class="sat-stat-lbl">Avg Ground NO₂ (µg/m³)</div>
+        </div>
+        <div class="sat-stat">
+          <div class="sat-stat-val" id="satMAE">—</div>
+          <div class="sat-stat-lbl">Model MAE (µg/m³)</div>
+        </div>
+      </div>
+
+      <div class="no2-heatmap">
+        <canvas class="no2-canvas" id="no2Canvas"></canvas>
+      </div>
+      <div class="heatmap-legend">
+        <span>Low</span>
+        <div class="legend-bar"></div>
+        <span>High NO₂</span>
+      </div>
+
+      <div class="interpretation-box" id="satInterpretation">
+        Select a city and click Run to load satellite NO₂ data and AI interpretation.
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Health Report Generator ──────────────────────────────── -->
+  <div class="ai-card">
+    <div class="ai-card-header">
+      <span>📋</span>
+      <h3>AI Health Report</h3>
+      <span class="badge-groq">GROQ</span>
+    </div>
+    <div class="ai-card-body">
+      <div style="display:flex; gap:0.5rem; margin-bottom:1rem; align-items:center;">
+        <select id="reportCity" class="form-select" style="flex:1">
+          {% for city in cities %}
+          <option value="{{ city.city_name }}">{{ city.city_name }}</option>
+          {% endfor %}
+        </select>
+        <button class="btn btn-primary" onclick="generateReport()" id="reportBtn">Generate</button>
+      </div>
+
+      <div id="reportOutput" style="display:none">
+        <p id="reportSummary" style="font-size:0.82rem; color:var(--text-2); line-height:1.6;"></p>
+        <div class="report-grid">
+          <div class="report-section">
+            <h4>Health Impacts</h4>
+            <p id="reportGeneralPop"></p>
+            <p id="reportVulnerable" style="margin-top:0.4rem;"></p>
+          </div>
+          <div class="report-section">
+            <h4>Immediate Actions</h4>
+            <ul id="reportImmediate"></ul>
+          </div>
+          <div class="report-section">
+            <h4>Key Sources</h4>
+            <ul id="reportSources"></ul>
+          </div>
+          <div class="report-section">
+            <h4>Satellite Insight</h4>
+            <p id="reportSatellite"></p>
+          </div>
+        </div>
+        <p id="reportOutlook"
+           style="margin-top:0.75rem; font-size:0.78rem; color:var(--text-3); font-style:italic;"></p>
+      </div>
+
+      <div id="reportPlaceholder"
+           style="font-size:0.82rem; color:var(--text-3); text-align:center; padding:2rem 0;">
+        Select a city and click Generate to create a 7-day AI health report.
+      </div>
+    </div>
+  </div>
+
+</div><!-- .ai-grid -->
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Shared state ──────────────────────────────────────────────────────────────
+const chatHistory = [];
+
+// ── Chatbot ───────────────────────────────────────────────────────────────────
+function sendSuggestion(el) {
+  document.getElementById('chatInput').value = el.textContent;
+  sendChat();
+}
+
+async function sendChat() {
+  const input = document.getElementById('chatInput');
+  const msg   = input.value.trim();
+  if (!msg) return;
+
+  const city  = document.getElementById('chatCitySelect').value;
+  const btn   = document.getElementById('chatSendBtn');
+  btn.disabled = true;
+  input.value = '';
+
+  appendBubble('user', msg);
+
+  const typingEl = appendBubble('typing', '⏳ Thinking…');
+
+  // Add to history
+  chatHistory.push({ role: 'user', text: msg });
+  if (chatHistory.length > 10) chatHistory.splice(0, 2); // keep last 5 turns
+
+  try {
+    const res = await fetch('/api/ai/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: msg,
+        city: city || undefined,
+        history: chatHistory.slice(0, -1), // exclude current message
+      }),
+    });
+    const data = await res.json();
+    typingEl.remove();
+
+    if (data.status === 'success') {
+      const reply = data.data.reply;
+      appendBubble('ai', reply);
+      chatHistory.push({ role: 'model', text: reply });
+
+      // Suggestions
+      if (data.data.suggestions?.length) {
+        const sugg = document.createElement('div');
+        sugg.className = 'chat-suggestions';
+        data.data.suggestions.forEach(s => {
+          const pill = document.createElement('span');
+          pill.className = 'suggestion-pill';
+          pill.textContent = s;
+          pill.onclick = () => sendSuggestion(pill);
+          sugg.appendChild(pill);
+        });
+        document.getElementById('chatMessages').appendChild(sugg);
+      }
+    } else {
+      appendBubble('ai', '⚠️ ' + (data.message || 'Error from AI service.'));
+    }
+  } catch(e) {
+    typingEl.remove();
+    appendBubble('ai', '⚠️ Network error. Please check your connection.');
+  } finally {
+    btn.disabled = false;
+    scrollChat();
+  }
+}
+
+function appendBubble(role, text) {
+  const box = document.getElementById('chatMessages');
+  const el  = document.createElement('div');
+  el.className = 'chat-bubble ' + role;
+  el.textContent = text;
+  box.appendChild(el);
+  scrollChat();
+  return el;
+}
+
+function scrollChat() {
+  const box = document.getElementById('chatMessages');
+  box.scrollTop = box.scrollHeight;
+}
+
+// ── Health Advisor ────────────────────────────────────────────────────────────
+async function getHealthAdvice() {
+  const city      = document.getElementById('advisorCity').value;
+  const age_group = document.getElementById('advisorAge').value;
+  const activity  = document.getElementById('advisorActivity').value;
+  const conditions = [...document.querySelectorAll('.checkbox-label input:checked')]
+                      .map(c => c.value);
+
+  const btn = document.getElementById('advisorBtn');
+  btn.disabled  = true;
+  btn.innerHTML = '<span class="spinner"></span> Asking GROQ…';
+
+  try {
+    const res = await fetch('/api/ai/health-advice', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        city,
+        user_profile: { age_group, conditions, activity },
+      }),
+    });
+    const data = await res.json();
+
+    if (data.status === 'success') {
+      renderHealthAdvice(data.data);
+    } else {
+      alert('Error: ' + (data.message || 'GROQ API error. Is GROQ_API_KEY set?'));
+    }
+  } catch(e) {
+    alert('Network error: ' + e.message);
+  } finally {
+    btn.disabled  = false;
+    btn.innerHTML = 'Get AI Health Advice';
+  }
+}
+
+function renderHealthAdvice(d) {
+  const resultEl = document.getElementById('adviceResult');
+  resultEl.classList.add('show');
+
+  const riskMap = {
+    'Low': 'risk-low', 'Moderate': 'risk-moderate',
+    'High': 'risk-high', 'Very High': 'risk-veryhigh', 'Hazardous': 'risk-hazardous'
+  };
+  const badge = document.getElementById('riskBadge');
+  badge.textContent = d.risk_level || 'Unknown';
+  badge.className   = 'risk-badge ' + (riskMap[d.risk_level] || 'risk-moderate');
+
+  document.getElementById('adviceSummary').textContent = d.summary || '';
+  document.getElementById('maskRec').textContent       = '😷 Mask: ' + (d.mask_recommendation || '—');
+  document.getElementById('ventilationAdv').textContent= '🏠 ' + (d.ventilation_advice || '');
+
+  const actEl = document.getElementById('adviceActions');
+  actEl.innerHTML = '';
+  const all = [...(d.advice||[]), ...(d.precautions||[])];
+  if (all.length) {
+    const ul = document.createElement('ul');
+    ul.className = 'advice-list';
+    all.forEach(a => { const li=document.createElement('li'); li.textContent=a; ul.appendChild(li); });
+    actEl.appendChild(ul);
+  }
+
+  if (d.activities_to_avoid?.length) {
+    const p = document.createElement('p');
+    p.style.cssText = 'font-size:0.75rem; color:var(--text-3); margin-top:0.5rem;';
+    p.textContent   = '🚫 Avoid: ' + d.activities_to_avoid.join(', ');
+    actEl.appendChild(p);
+  }
+}
+
+// ── Satellite NO2 ─────────────────────────────────────────────────────────────
+async function loadSatellite() {
+  const city   = document.getElementById('satelliteCity').value;
+  const method = document.getElementById('mlMethod').value;
+  const btn    = document.getElementById('satBtn');
+  btn.disabled  = true;
+  btn.innerHTML = '<span class="spinner"></span>';
+
+  document.getElementById('satInterpretation').textContent = '⏳ Running AI/ML downscaling pipeline…';
+
+  try {
+    // Parallel: downscale + interpret
+    const [dsRes, interpRes] = await Promise.all([
+      fetch(`/api/satellite/${city}/downscale?method=${method}`).then(r => r.json()),
+      fetch(`/api/satellite/${city}/interpret`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ method }),
+      }).then(r => r.json()),
+    ]);
+
+    if (dsRes.status === 'success') {
+      const ds = dsRes.data;
+      const sat = ds.satellite;
+      const metrics = ds.downscaled?.model_metrics || {};
+      const summary = ds.downscaled?.summary || {};
+      const groundStations = ds.ground_stations || [];
+
+      document.getElementById('satStats').style.display = 'grid';
+      document.getElementById('satNo2Col').textContent =
+        sat?.no2_column_density?.toFixed(4) || '—';
+      document.getElementById('satGroundNo2').textContent =
+        groundStations.length
+          ? (groundStations.reduce((a,s)=>a+s.no2_ugm3,0)/groundStations.length).toFixed(1)
+          : '—';
+      document.getElementById('satMAE').textContent =
+        metrics.mae_ugm3 != null ? metrics.mae_ugm3.toFixed(1) : '—';
+
+      // Draw heatmap on canvas
+      const pixels = ds.downscaled?.downscaled_pixels || [];
+      drawNo2Heatmap(pixels, summary);
+    }
+
+    if (interpRes.status === 'success') {
+      document.getElementById('satInterpretation').textContent =
+        interpRes.data.interpretation || 'No interpretation available.';
+    } else {
+      document.getElementById('satInterpretation').textContent =
+        '⚠️ ' + (interpRes.message || 'GROQ API error. Set GROQ_API_KEY in .env');
+    }
+
+  } catch(e) {
+    document.getElementById('satInterpretation').textContent = '⚠️ Error: ' + e.message;
+  } finally {
+    btn.disabled  = false;
+    btn.innerHTML = 'Run';
+  }
+}
+
+function drawNo2Heatmap(pixels, summary) {
+  const canvas = document.getElementById('no2Canvas');
+  if (!canvas || !pixels.length) return;
+  const ctx    = canvas.getContext('2d');
+  const W = canvas.width  = canvas.offsetWidth;
+  const H = canvas.height = canvas.offsetHeight;
+
+  const lats = pixels.map(p => p.lat), lons = pixels.map(p => p.lon);
+  const no2s = pixels.map(p => p.no2_ugm3);
+  const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+  const minLon = Math.min(...lons), maxLon = Math.max(...lons);
+  const minNo2 = Math.min(...no2s), maxNo2 = Math.max(...no2s);
+  const range  = maxNo2 - minNo2 || 1;
+
+  // Color scale: green → yellow → orange → red → maroon
+  function no2Color(val) {
+    const t = (val - minNo2) / range;
+    const stops = [
+      [0,   [26, 150, 65]],
+      [0.25,[166,217,106]],
+      [0.5, [255,255,191]],
+      [0.75,[253,174, 97]],
+      [1.0, [123,  0,  0]],
+    ];
+    for (let i=0; i<stops.length-1; i++) {
+      const [t0, c0] = stops[i];
+      const [t1, c1] = stops[i+1];
+      if (t >= t0 && t <= t1) {
+        const f = (t-t0)/(t1-t0);
+        return c0.map((v,j) => Math.round(v + f*(c1[j]-v)));
+      }
+    }
+    return [123,0,0];
+  }
+
+  // Pixel size
+  const pw = Math.ceil(W / Math.sqrt(pixels.length)) + 1;
+  const ph = Math.ceil(H / Math.sqrt(pixels.length)) + 1;
+
+  pixels.forEach(p => {
+    const x = ((p.lon - minLon) / (maxLon - minLon || 1)) * (W - pw);
+    const y = (1 - (p.lat - minLat) / (maxLat - minLat || 1)) * (H - ph);
+    const [r,g,b] = no2Color(p.no2_ugm3);
+    ctx.fillStyle = `rgb(${r},${g},${b})`;
+    ctx.fillRect(Math.round(x), Math.round(y), pw, ph);
+  });
+
+  // Label
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect(4, 4, 190, 22);
+  ctx.fillStyle = '#fff';
+  ctx.font = '11px monospace';
+  ctx.fillText(`NO₂ range: ${minNo2.toFixed(0)}–${maxNo2.toFixed(0)} µg/m³  |  ${pixels.length} px`, 8, 18);
+}
+
+// ── Health Report ─────────────────────────────────────────────────────────────
+async function generateReport() {
+  const city = document.getElementById('reportCity').value;
+  const btn  = document.getElementById('reportBtn');
+  btn.disabled  = true;
+  btn.innerHTML = '<span class="spinner"></span> Generating…';
+
+  document.getElementById('reportPlaceholder').style.display = 'block';
+  document.getElementById('reportOutput').style.display      = 'none';
+  document.getElementById('reportPlaceholder').textContent   = '⏳ GROQ is analysing 7 days of data…';
+
+  try {
+    const res  = await fetch(`/api/ai/health-report/${city}`);
+    const data = await res.json();
+
+    if (data.status === 'success') {
+      renderReport(data.data);
+    } else {
+      document.getElementById('reportPlaceholder').textContent =
+        '⚠️ ' + (data.message || 'Report generation failed. Is GROQ_API_KEY set?');
+    }
+  } catch(e) {
+    document.getElementById('reportPlaceholder').textContent = '⚠️ Error: ' + e.message;
+  } finally {
+    btn.disabled  = false;
+    btn.innerHTML = 'Generate';
+  }
+}
+
+function renderReport(d) {
+  document.getElementById('reportPlaceholder').style.display = 'none';
+  document.getElementById('reportOutput').style.display      = 'block';
+
+  document.getElementById('reportSummary').textContent  = d.executive_summary || '';
+  document.getElementById('reportGeneralPop').textContent = d.health_impacts?.general_population || '';
+  document.getElementById('reportVulnerable').textContent  = d.health_impacts?.vulnerable_groups || '';
+  document.getElementById('reportSatellite').textContent   = d.satellite_insights || '—';
+  document.getElementById('reportOutlook').textContent     =
+    '🔭 Outlook: ' + (d.forecast_outlook || '') + '  |  Confidence: ' + (d.data_confidence || '—');
+
+  const immUl = document.getElementById('reportImmediate');
+  immUl.innerHTML = '';
+  (d.recommendations?.immediate || []).forEach(r => {
+    const li = document.createElement('li'); li.textContent = r; immUl.appendChild(li);
+  });
+
+  const srcUl = document.getElementById('reportSources');
+  srcUl.innerHTML = '';
+  (d.likely_sources || []).forEach(s => {
+    const li = document.createElement('li'); li.textContent = s; srcUl.appendChild(li);
+  });
+}
+</script>
+{% endblock %}

@@ -2,6 +2,7 @@
 AQI Platform — Application Factory
 ===================================
 Flask app using the App Factory pattern for scalability.
+Updated: SIH1734 GenAI features + Satellite downscaling routes registered.
 """
 
 import os
@@ -23,7 +24,7 @@ def create_app(config_name="development"):
     # ── Config ────────────────────────────────────────────────────────────────
     app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret-change-in-prod")
     app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv(
-        "DATABASE_URL", "sqlite:///aqi_dev.db"  # fallback to SQLite for local dev
+        "DATABASE_URL", "sqlite:///aqi_dev.db"
     )
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
@@ -40,9 +41,11 @@ def create_app(config_name="development"):
     from app.routes.main import main_bp
     from app.routes.api import api_bp
     from app.routes.dashboard import dashboard_bp
+    from app.routes.genai_routes import genai_bp        # ← NEW: GenAI + Satellite
 
     app.register_blueprint(main_bp)
     app.register_blueprint(api_bp, url_prefix="/api")
+    app.register_blueprint(genai_bp, url_prefix="/api") # ← NEW
     app.register_blueprint(dashboard_bp, url_prefix="/dashboard")
 
     # ── Shell context ─────────────────────────────────────────────────────────

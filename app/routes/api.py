@@ -1,9 +1,3 @@
-"""
-REST API Blueprint
-==================
-All /api/* endpoints. Returns JSON.
-Documented with inline comments (Swagger via flask-smorest optional add-on).
-"""
 
 from flask import Blueprint, jsonify, request
 from datetime import datetime, timedelta

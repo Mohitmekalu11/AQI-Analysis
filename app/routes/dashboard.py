@@ -16,7 +16,7 @@ def home():
             .order_by(AirQualityReading.timestamp.desc())\
             .first()
         city_cards.append({
-            "city": city,
+            "city":   city,
             "latest": latest,
         })
     return render_template("dashboard/home.html", city_cards=city_cards)
@@ -47,3 +47,10 @@ def heatmap():
 def forecast():
     cities = City.query.filter_by(is_active=True).all()
     return render_template("dashboard/forecast.html", cities=cities)
+
+
+@dashboard_bp.route("/ai-assistant")
+def ai_assistant():
+    """NEW: GenAI + SIH1734 Satellite Downscaling assistant page."""
+    cities = City.query.filter_by(is_active=True).all()
+    return render_template("dashboard/ai_assistant.html", cities=cities)
