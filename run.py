@@ -1,10 +1,3 @@
-"""
-AQI India Platform — Entry Point
-==================================
-Run with:
-  python run.py              # Development
-  gunicorn run:app           # Production (Render/Railway)
-"""
 
 import logging
 from app import create_app, db
@@ -119,6 +112,13 @@ def train_models():
             for p in preds:
                 print(f"    {p['predicted_date']} → AQI {p['predicted_aqi']} [{p['model_used']}]")
 
+
+
+with app.app_context():
+    db.create_all()
+
+    from your_seed_file import seed_db
+    seed_db()
 
 if __name__ == "__main__":
     with app.app_context():
