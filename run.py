@@ -175,17 +175,6 @@ def train_models():
                 )
 
 
-# =========================
-# TEMPORARY AUTO-SEED
-# =========================
-with app.app_context():
-    db.create_all()
-
-    # Seed only if DB is empty
-    if City.query.count() == 0:
-        print("Database empty. Running initial seed...")
-        perform_seed()
-
 
 # =========================
 # MAIN ENTRY
