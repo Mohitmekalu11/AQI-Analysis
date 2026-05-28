@@ -1,9 +1,3 @@
-"""
-AQI Platform — Application Factory
-===================================
-Flask app using the App Factory pattern for scalability.
-Updated: SIH1734 GenAI features + Satellite downscaling routes registered.
-"""
 
 import os
 from flask import Flask
